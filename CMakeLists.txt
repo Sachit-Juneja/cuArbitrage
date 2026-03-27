@@ -15,6 +15,7 @@ find_package(CUDAToolkit REQUIRED)
 
 add_executable(cuArbitrage 
     src/main.cu 
+    src/memory_manager.cu
 )
 
 # Linking CUDA. If this fails, it's an NVIDIA problem, not a me problem.

@@ -20,6 +20,9 @@ int main() {
     std::cout << "Found a wild GPU: " << specs.name << std::endl;
     std::cout << "VRAM Capacity: " << specs.totalGlobalMem / (1024*1024) << " MB. We can work with this." << std::endl;
 
+    VramHog memory_pool;
+    memory_pool.steal_all_memory();
+
     // TODO: Write the actual C&O Bellman-Ford negative cycle graph math here.
     // Note to self: Make sure the graph doesn't leak memory.
     
