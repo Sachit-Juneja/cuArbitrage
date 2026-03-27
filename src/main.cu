@@ -1,5 +1,6 @@
 #include "memory_manager.cuh"
 #include "graph_engine.cuh"
+#include "optimizer.cuh"
 #include <iostream>
 
 int main() {
@@ -41,8 +42,20 @@ int main() {
     
     // Need Cole Palmer levels of clutch execution for this next part to compile
     if (arbitrage_loop_found) {
-        std::cout << "ARBITRAGE DETECTED!!!!!!!!!!! Deploying cuOpt sizing..." << std::endl;
-        // insert cuOpt math here later
+        std::cout << "ARBITRAGE DETECTED!!!!!!! Deploying cuOpt sizing..." << std::endl;
+        
+        // 1. Extract the cycle (mocking the extraction for the demo)
+        CyclePath detected_cycle;
+        detected_cycle.length = 3;
+        detected_cycle.bottleneck_liquidity = 50000.0f; // Only $50k available at the best bid/ask
+        
+        // 2. Fire the optimizer. We are capping our CVaR tail risk to a factor of 0.05 (5%)
+        cuOptWrapper optimizer;
+        float safe_volume = optimizer.calculate_optimal_sizing(detected_cycle, 0.05f);
+        
+        std::cout << ">>> EXECUTE TRADE: Routing $" << safe_volume << " through the cycle." << std::endl;
+        std::cout << ">>> EXPECTED SLIPPAGE BOUNDED." << std::endl;
+        
     } else {
         std::cout << "Market is efficient today. Go touch grass." << std::endl;
     }
