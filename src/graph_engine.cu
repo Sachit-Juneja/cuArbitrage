@@ -68,49 +68,51 @@ void ArbitrageGraph::add_edge(int u, int v, float rate) {
     num_edges++;
 }
 
-bool ArbitrageGraph::detect_negative_cycle() {
-    std::cout << "[Graph] Hunting for negative weight cycles on the GPU..." << std::endl;
+// Notice we now pass VramHog by reference
+bool ArbitrageGraph::detect_negative_cycle(VramHog& memory_pool) {
+    std::cout << "[Graph] Hunting for negative weight cycles (Zero-Copy Mode)..." << std::endl;
     
-    // 1. Allocate GPU Memory (Normally VramHog would do this, but doing it raw here for the math proof)
-    Edge* d_edges;
-    float* d_dist;
-    bool* d_has_cycle;
+    Edge *h_edges, *d_edges;
+    float *h_dist, *d_dist;
+    bool *h_has_cycle, *d_has_cycle;
     
-    cudaMalloc(&d_edges, num_edges * sizeof(Edge));
-    cudaMalloc(&d_dist, num_nodes * sizeof(float));
-    cudaMalloc(&d_has_cycle, sizeof(bool));
+    // 1. Ask VramHog for shared memory pointers instead of using cudaMalloc
+    memory_pool.allocate_zero_copy(&h_edges, &d_edges, num_edges);
+    memory_pool.allocate_zero_copy(&h_dist, &d_dist, num_nodes);
+    memory_pool.allocate_zero_copy(&h_has_cycle, &d_has_cycle, 1);
     
-    // 2. Initialize distances (Asset 0 is our starting capital, distance 0. Everything else is infinity)
-    std::vector<float> h_dist(num_nodes, 1e9f);
+    // 2. CPU writes directly to the shared memory
+    for(int i = 0; i < num_edges; i++) {
+        h_edges[i] = edges[i]; 
+    }
+    for(int i = 0; i < num_nodes; i++) {
+        h_dist[i] = 1e9f;
+    }
     h_dist[0] = 0.0f; 
-    bool h_has_cycle = false;
+    *h_has_cycle = false;
     
-    // 3. Copy data to GPU (The bottleneck we will eventually eliminate with zero-copy)
-    cudaMemcpy(d_edges, edges.data(), num_edges * sizeof(Edge), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_dist, h_dist.data(), num_nodes * sizeof(float), cudaMemcpyHostToDevice);
-    cudaMemcpy(d_has_cycle, &h_has_cycle, sizeof(bool), cudaMemcpyHostToDevice);
+    // NO CUDAMEMCPY HERE. The GPU can already see the data we just wrote.
     
-    // 4. Launch Config (Blocks and Threads)
+    // 3. Launch Config
     int threadsPerBlock = 256;
     int blocksPerGrid = (num_edges + threadsPerBlock - 1) / threadsPerBlock;
     
-    // 5. Run Bellman-Ford V-1 times
+    // 4. Fire the GPU Kernels
     for (int i = 0; i < num_nodes - 1; i++) {
         bellman_ford_relax<<<blocksPerGrid, threadsPerBlock>>>(num_nodes, num_edges, d_edges, d_dist);
-        cudaDeviceSynchronize(); // Wait for all threads to finish this iteration
+        cudaDeviceSynchronize();
     }
     
-    // 6. One final check for the cycle
     check_negative_cycle<<<blocksPerGrid, threadsPerBlock>>>(num_edges, d_edges, d_dist, d_has_cycle);
     cudaDeviceSynchronize();
     
-    // 7. Pull the result back to the CPU
-    cudaMemcpy(&h_has_cycle, d_has_cycle, sizeof(bool), cudaMemcpyDeviceToHost);
+    // 5. Read the result directly from the shared pointer
+    bool cycle_found = *h_has_cycle;
     
-    // 8. Clean up (Don't tell VramHog we are using cudaFree)
-    cudaFree(d_edges);
-    cudaFree(d_dist);
-    cudaFree(d_has_cycle);
+    // 6. Clean up
+    memory_pool.free_zero_copy(h_edges);
+    memory_pool.free_zero_copy(h_dist);
+    memory_pool.free_zero_copy(h_has_cycle);
     
-    return h_has_cycle;
+    return cycle_found;
 }

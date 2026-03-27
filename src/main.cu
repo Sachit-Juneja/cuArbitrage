@@ -37,7 +37,7 @@ int main() {
 
     // 3. Run the math to find the negative weight cycles
     // Note to self: Make sure the graph doesn't leak memory.
-    bool arbitrage_loop_found = market.detect_negative_cycle(); 
+    bool arbitrage_loop_found = market.detect_negative_cycle(memory_pool);
     
     // Need Cole Palmer levels of clutch execution for this next part to compile
     if (arbitrage_loop_found) {

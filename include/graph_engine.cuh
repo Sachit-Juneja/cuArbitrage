@@ -2,6 +2,8 @@
 #include <vector>
 #include <iostream>
 
+class VramHog;
+
 // Standard C&O graph theory stuff. 
 // If this struct gets too fat, the GPU memory transfer will bottleneck us. Keep it lean.
 struct Edge {
@@ -25,5 +27,5 @@ public:
     
     // O(V*E) complexity. We will parallelize this on the GPU later so we don't get 
     // destroyed by latency during a live trading session.
-    bool detect_negative_cycle(); 
+    bool detect_negative_cycle(VramHog& memory_pool);
 };
