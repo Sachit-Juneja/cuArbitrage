@@ -1,4 +1,5 @@
 #include "graph_engine.cuh"
+#include "memory_manager.cuh"
 #include <cmath>
 
 // --- CUDA KERNELS ---
